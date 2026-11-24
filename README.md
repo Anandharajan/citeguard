@@ -1,0 +1,112 @@
+# CiteGuard
+
+**Does the paper you cite actually say what you claim it says?** CiteGuard checks every `\cite` in your
+LaTeX paper against the cited work, using a local language model, and flags retracted papers, newer
+published versions and wrong BibTeX metadata — before a reviewer does.
+
+[![CI](https://github.com/Anandharajan/citeguard/actions/workflows/ci.yml/badge.svg)](https://github.com/Anandharajan/citeguard/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue) [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Anandharajan/citeguard/blob/main/notebooks/quickstart.ipynb) [![Open in GitHub Codespaces](https://img.shields.io/badge/Open%20in-Codespaces-black?logo=github)](https://codespaces.new/Anandharajan/citeguard) [![GitHub stars](https://img.shields.io/github/stars/Anandharajan/citeguard?style=social)](https://github.com/Anandharajan/citeguard/stargazers)
+
+> ⭐ **If CiteGuard catches even one bad citation for you, please [star the repo](https://github.com/Anandharajan/citeguard)** — it helps other researchers find it.
+
+## Why
+
+LLM-assisted writing produces citations that *exist* but do not support the sentence they are attached to,
+and plain existence checkers miss that. CiteGuard focuses on what they miss:
+
+| Badge | Meaning |
+|---|---|
+| ✔ | reference found, metadata matches |
+| ◐ | the cited work does **not support** (or **contradicts**) the citing sentence |
+| ↻ | a preprint you cite now has a **published version** |
+| ⛔ | the cited work was **retracted** or has an expression of concern |
+| ⚠ | title / authors / year differ from the canonical record |
+| ✖ | not found in Crossref / OpenAlex |
+
+## Try it in 60 seconds
+
+- **No install:** [open the Colab notebook](https://colab.research.google.com/github/Anandharajan/citeguard/blob/main/notebooks/quickstart.ipynb) and press *Run all*.
+- **In the browser with VS Code:** [open in GitHub Codespaces](https://codespaces.new/Anandharajan/citeguard).
+- **On your machine:**
+
+```bash
+pip install "citeguard[nli] @ git+https://github.com/Anandharajan/citeguard"
+citeguard check main.tex refs.bib --report report.html
+```
+
+Check a single claim against an abstract, fully offline:
+
+```bash
+citeguard claim "Residual routing reduces packet latency in mesh networks." abstract.txt
+```
+
+```json
+{"label": "supported", "score": 0.97, "contradiction": -0.98,
+  "evidence": [{"sentence": "Residual routing reduces packet latency in mesh networks by learning shortcut paths ..."}]}
+```
+
+## Use it from your AI assistant (MCP)
+
+citeguard ships a local [Model Context Protocol](https://modelcontextprotocol.io) server (stdio only, nothing leaves
+your machine). Install with `pip install "citeguard[mcp,nli] @ git+https://github.com/Anandharajan/citeguard"`, then add this to
+your client's MCP config (Claude Desktop, Cursor, VS Code and others use the same shape):
+
+```json
+{
+  "mcpServers": {
+    "citeguard": { "command": "citeguard-mcp" }
+  }
+}
+```
+
+Every tool call is written to a local audit log, and you can limit file access to chosen folders with the
+`CITEGUARD_ROOTS` environment variable.
+
+## How it works
+
+1. **Parse** `.tex` (citing sentence + context) and `.bib`.
+2. **Resolve** each entry on Crossref and OpenAlex (titles/DOIs only; cached, rate-limited) and score the metadata match.
+3. **Claim support:** split the cited abstract into sentences and score each against the citing sentence with a local
+   NLI cross-encoder (`cross-encoder/nli-deberta-v3-small`); `supported` / `partially supported` / `contradicted` / `unsupported`,
+   with the two best evidence sentences.
+4. **Drift:** preprint → published version, retractions and corrections from Crossref update records.
+
+## Results (SciFact, honest numbers)
+
+Claim–abstract pairs from [SciFact](https://github.com/allenai/scifact) (Wadden et al., EMNLP 2020); thresholds tuned on
+the train split, reported on the dev split (340 pairs). Reproduce with `python benchmarks/scifact_support.py`.
+
+| Scorer | 3-way macro-F1 | F1 supports | F1 contradicts | AUROC (supports vs rest) |
+|---|---|---|---|---|
+| Lexical fallback (no model) | 0.507 | 0.636 | 0.2 | 0.758 |
+| **Local NLI (DeBERTa-v3-small)** | **0.546** | 0.595 | **0.45** | **0.836** |
+
+These are abstract-only results with a small CPU model: treat a ◐ badge as "go and read this paper", not as a verdict.
+Full-text checking and larger models are on the roadmap.
+
+## Privacy
+
+Only titles and DOIs are sent to Crossref/OpenAlex. Your manuscript text never leaves your machine: the NLI model runs
+locally. Set `CITEGUARD_MAILTO` to identify yourself to the Crossref/OpenAlex polite pools.
+
+## Roadmap
+
+Overleaf side panel · full-text (open-access) support checking · a released claim–citation dataset · comparison with
+existing citation checkers.
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome: [open an issue](https://github.com/Anandharajan/citeguard/issues).
+Run `python -m pytest -q` before sending a pull request.
+
+## Citation
+
+If you use citeguard in research, please cite it (see [CITATION.cff](CITATION.cff), or GitHub's *Cite this repository* button).
+
+## Licence
+
+MIT © 2026 Anandharajan TRV, Department of ECE, St. Joseph College of Engineering, Chennai.
+
+---
+
+**If citeguard saved you time, please ⭐ [star the repository](https://github.com/Anandharajan/citeguard/stargazers)** — it is
+the simplest way to help other researchers find it.

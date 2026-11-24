@@ -1,0 +1,3 @@
+scorer,dev_pairs,macro_f1,f1_support,f1_contradict,f1_nei,auroc_support,train_macro_f1,t_supported,t_contradicted,seconds_train_plus_dev
+lexical (no model),340,0.507,0.636,0.2,0.685,0.758,0.519,0.323,0.012,0.4
+cross-encoder NLI (DeBERTa-v3-small),340,0.546,0.595,0.45,0.592,0.836,0.548,0.012,0.97,903.8
