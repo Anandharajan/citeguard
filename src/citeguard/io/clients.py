@@ -98,6 +98,17 @@ def _openalex_abstract(inv: dict[str, list[int]] | None) -> str:
     return " ".join(w for _, w in pos)
 
 
+def _openalex_record(w: dict[str, Any]) -> Record:
+    doi = (w.get("doi") or "").removeprefix("https://doi.org/") or None
+    loc = (w.get("primary_location") or {}).get("source") or {}
+    return Record(title=w.get("title") or w.get("display_name") or "",
+                  authors=[(a.get("author") or {}).get("display_name", "") for a in w.get("authorships", [])],
+                  year=w.get("publication_year"), venue=loc.get("display_name") or "", doi=doi, source="openalex",
+                  abstract=_openalex_abstract(w.get("abstract_inverted_index")),
+                  is_preprint=w.get("type") == "preprint",
+                  updates=[{"type": "retraction", "DOI": ""}] if w.get("is_retracted") else [])
+
+
 class Resolver:
     def __init__(self, fetch: Fetch) -> None:
         self.fetch = fetch
@@ -112,12 +123,27 @@ class Resolver:
         return rec
 
     def by_title(self, title: str, rows: int = 5) -> list[Record]:
+        """Crossref bibliographic search plus OpenAlex title search. OpenAlex covers venues that
+        Crossref does not (e.g. NeurIPS/ICLR proceedings, many preprints) and returns abstracts."""
         q = urllib.parse.quote(title)
+        out: list[Record] = []
         try:
             items = self.fetch(f"https://api.crossref.org/works?query.bibliographic={q}&rows={rows}")["message"]["items"]
+            out += [_crossref_record(m) for m in items]
         except Exception:  # noqa: BLE001
-            return []
-        return [_crossref_record(m) for m in items]
+            pass
+        try:
+            works = self.fetch(f"https://api.openalex.org/works?search={q}&per-page={rows}")["results"]
+            out += [_openalex_record(w) for w in works]
+        except Exception:  # noqa: BLE001
+            pass
+        return out
+
+    def ensure_abstract(self, rec: Record) -> Record:
+        """Crossref rarely carries abstracts: fill it from OpenAlex when missing."""
+        if not rec.abstract:
+            self._enrich_openalex(rec)
+        return rec
 
     def _enrich_openalex(self, rec: Record) -> None:
         if not rec.doi:

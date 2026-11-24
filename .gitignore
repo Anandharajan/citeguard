@@ -8,3 +8,4 @@ dist/
 *.db
 benchmarks/data/
 benchmarks/results/*.npz
+benchmarks/results/probs_*.json

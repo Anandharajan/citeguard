@@ -28,7 +28,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "src"))
 
 from citeguard.algorithms.support import (  # noqa: E402
-    CrossEncoderNLI, calibrate_3way, classify, lexical_nli, macro_f1, score_sentences,
+    CrossEncoderNLI, aggregate, calibrate_3way, classify, lexical_nli, macro_f1, score_sentences,
 )
 
 URL = "https://scifact.s3-us-west-2.amazonaws.com/release/latest/data.tar.gz"
@@ -66,18 +66,18 @@ def load(split: str) -> list[tuple[str, list[str], str]]:
     return items
 
 
-def scores(items, nli) -> tuple[np.ndarray, np.ndarray]:
-    sup, con = [], []
-    for claim, sents, _ in items:
-        probs = score_sentences(claim, sents, nli)
-        sup.append(max(pe - pc for pe, pc in probs))
-        con.append(max(pc - pe for pe, pc in probs))
-    return np.array(sup), np.array(con)
+def sentence_probs(items, nli) -> list[list[list[float]]]:
+    return [[list(p) for p in score_sentences(claim, sents, nli)] for claim, sents, _ in items]
+
+
+def scores(items, probs) -> tuple[np.ndarray, np.ndarray]:
+    agg = [aggregate(claim, sents, [tuple(p) for p in pr]) for (claim, sents, _), pr in zip(items, probs)]
+    return np.array([a[0] for a in agg]), np.array([a[1] for a in agg])
 
 
 def auroc(y: np.ndarray, s: np.ndarray) -> float:
     pos, neg = s[y == 1], s[y == 0]
-    return float(((pos[:, None] > neg[None, :]).mean() + 0.5 * (pos[:, None] == neg[None, :]).mean()))
+    return float((pos[:, None] > neg[None, :]).mean() + 0.5 * (pos[:, None] == neg[None, :]).mean())
 
 
 def main() -> None:
@@ -91,16 +91,16 @@ def main() -> None:
         print('sentence-transformers missing: pip install "citeguard[nli]"')
     rows = []
     for name, nli in scorers.items():
-        cache = OUT / f"scores_{'lexical' if nli is lexical_nli else 'cross_encoder'}.npz"
+        cache = OUT / f"probs_{'lexical' if nli is lexical_nli else 'cross_encoder'}.json"
         t0 = time.perf_counter()
-        if cache.exists():  # model scores are deterministic; cache them so threshold tuning is cheap
-            z = np.load(cache)
-            st, ct, sd, cd = z["st"], z["ct"], z["sd"], z["cd"]
+        if cache.exists():  # per-sentence model scores are deterministic: cache them, aggregation stays cheap
+            pt, pd = json.loads(cache.read_text())
         else:
-            st, ct = scores(train, nli)
-            sd, cd = scores(dev, nli)
+            pt, pd = sentence_probs(train, nli), sentence_probs(dev, nli)
             OUT.mkdir(exist_ok=True)
-            np.savez(cache, st=st, ct=ct, sd=sd, cd=cd)
+            cache.write_text(json.dumps([pt, pd]))
+        st, ct = scores(train, pt)
+        sd, cd = scores(dev, pd)
         secs = time.perf_counter() - t0
         th, train_f1 = calibrate_3way(list(st), list(ct), [x[2] for x in train], grid=97)
         gold = [x[2] for x in dev]

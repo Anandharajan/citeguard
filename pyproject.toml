@@ -12,7 +12,8 @@ requires-python = ">=3.11"
 authors = [{ name = "Anandharajan TRV", email = "trvanandharajan@gmail.com" }]
 dependencies = [
   "pydantic>=2",
-  "numpy"
+  "numpy",
+  "scikit-learn"
 ]
 
 [project.optional-dependencies]

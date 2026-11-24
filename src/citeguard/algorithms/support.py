@@ -75,13 +75,36 @@ def nli_cross_encoder(model: str = DEFAULT_NLI_MODEL) -> CrossEncoderNLI:  # pra
     return CrossEncoderNLI(model)
 
 
+_SENT = re.compile(r"\S.*?(?:[.!?](?=\s+[A-Z0-9(\[\"']|\s*$)|$)", re.S)
+
+
 def split_sentences(text: str) -> list[tuple[int, str]]:
+    """Sentence split that keeps decimals ("28.4 BLEU") and abbreviations inside a sentence."""
     out = []
-    for m in re.finditer(r"[^.!?]+[.!?]?", text):
-        s = m.group().strip()
+    for m in _SENT.finditer(text):
+        s = " ".join(m.group().split())
         if len(s.split()) >= 4:
-            out.append((m.start() + (len(m.group()) - len(m.group().lstrip())), s))
+            out.append((m.start(), s))
     return out
+
+
+def relevance(claim: str, sentence: str) -> float:
+    """Share of the claim's content words that appear in the sentence (rationale selection)."""
+    c = content(claim)
+    if not c:
+        return 0.0
+    words = set(content(sentence))
+    return sum(w in words for w in c) / len(c)
+
+
+def aggregate(claim: str, sents: list[str], probs: list[tuple[float, float]], k: int = 2) -> tuple[float, float]:
+    """Support = max entailment margin over all sentences. Contradiction = max contradiction margin
+    over only the k sentences most relevant to the claim: small NLI models report high
+    'contradiction' for unrelated sentences, so off-topic background must not vote."""
+    sup = max(pe - pc for pe, pc in probs)
+    top = sorted(range(len(sents)), key=lambda i: (-relevance(claim, sents[i]), i))[:k]
+    con = max(probs[i][1] - probs[i][0] for i in top)
+    return sup, con
 
 
 @dataclass
@@ -94,7 +117,7 @@ class Thresholds:
 # Per-backend defaults. The cross-encoder values are tuned on the SciFact *train* split only
 # (benchmarks/scifact_support.py); results are reported on the dev split.
 LEXICAL_THRESHOLDS = Thresholds(0.6, 0.3, 0.5)
-CROSS_ENCODER_THRESHOLDS = Thresholds(0.6, 0.3, 0.5)
+CROSS_ENCODER_THRESHOLDS = Thresholds(0.012, 0.006, 0.97)  # SciFact train-tuned (benchmarks/results/scifact_support.csv)
 
 
 def score_sentences(claim: str, sents: list[str], nli: NLI) -> list[tuple[float, float]]:
@@ -132,11 +155,11 @@ def support(claim: str, source_text: str | list[str], nli: NLI = lexical_nli,
     if len(sents) < 3:
         return {"label": "cannot verify", "score": None, "contradiction": None, "evidence": [],
                 "reason": "fewer than 3 source sentences"}
-    probs = score_sentences(claim, [s for _, s in sents], nli)
+    texts = [s for _, s in sents]
+    probs = score_sentences(claim, texts, nli)
     sup = [(pe - pc, off, s) for (pe, pc), (off, s) in zip(probs, sents)]
-    con = max(pc - pe for pe, pc in probs)
+    best, con = aggregate(claim, texts, probs)
     sup.sort(key=lambda t: -t[0])
-    best = sup[0][0]
     return {"label": classify(best, con, th), "score": round(best, 3), "contradiction": round(con, 3),
             "evidence": [{"offset": o, "sentence": s, "score": round(e, 3)} for e, o, s in sup[:2]]}
 

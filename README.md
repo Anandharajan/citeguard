@@ -39,9 +39,12 @@ Check a single claim against an abstract, fully offline:
 citeguard claim "Residual routing reduces packet latency in mesh networks." abstract.txt
 ```
 
-```json
-{"label": "supported", "score": 0.97, "contradiction": -0.98,
-  "evidence": [{"sentence": "Residual routing reduces packet latency in mesh networks by learning shortcut paths ..."}]}
+Real output with the local NLI model (three claims against the same abstract):
+
+```
+supported      score 0.99  | Residual routing reduces packet latency in mesh networks.
+contradicted   score 1.00  | Residual routing increases packet latency in mesh networks.
+unsupported    score 0.06  | Residual routing improves battery life of phones.
 ```
 
 ## Use it from your AI assistant (MCP)
@@ -66,8 +69,9 @@ Every tool call is written to a local audit log, and you can limit file access t
 1. **Parse** `.tex` (citing sentence + context) and `.bib`.
 2. **Resolve** each entry on Crossref and OpenAlex (titles/DOIs only; cached, rate-limited) and score the metadata match.
 3. **Claim support:** split the cited abstract into sentences and score each against the citing sentence with a local
-   NLI cross-encoder (`cross-encoder/nli-deberta-v3-small`); `supported` / `partially supported` / `contradicted` / `unsupported`,
-   with the two best evidence sentences.
+   NLI cross-encoder (`cross-encoder/nli-deberta-v3-small`). Contradiction is judged only on the 2 sentences most relevant
+   to the claim (rationale selection), because small NLI models report spurious contradictions for unrelated sentences.
+   Labels: `supported` / `partially supported` / `contradicted` / `unsupported`, with the two best evidence sentences.
 4. **Drift:** preprint → published version, retractions and corrections from Crossref update records.
 
 ## Results (SciFact, honest numbers)
@@ -78,7 +82,7 @@ the train split, reported on the dev split (340 pairs). Reproduce with `python b
 | Scorer | 3-way macro-F1 | F1 supports | F1 contradicts | AUROC (supports vs rest) |
 |---|---|---|---|---|
 | Lexical fallback (no model) | 0.507 | 0.636 | 0.2 | 0.758 |
-| **Local NLI (DeBERTa-v3-small)** | **0.546** | 0.595 | **0.45** | **0.836** |
+| **Local NLI (DeBERTa-v3-small) + rationale selection** | **0.614** | **0.667** | **0.533** | **0.836** |
 
 These are abstract-only results with a small CPU model: treat a ◐ badge as "go and read this paper", not as a verdict.
 Full-text checking and larger models are on the roadmap.

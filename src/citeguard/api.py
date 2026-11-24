@@ -52,7 +52,9 @@ def resolve(e: BibEntry, r: Resolver, cal: Calibrator | None = None) -> tuple[Re
         if s > bs:
             best, bs = c, s
     p = (cal or Calibrator())(bs)
-    return (best if bs >= 0.6 else None), p
+    if best is None or bs < 0.6:
+        return None, p
+    return r.ensure_abstract(best), p
 
 
 def verify_entry(e: BibEntry, r: Resolver) -> dict[str, Any]:

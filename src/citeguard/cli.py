@@ -3,12 +3,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from . import api
 
 
 def main(argv: list[str] | None = None, fetch=None) -> int:  # type: ignore[no-untyped-def]
+    for stream in (sys.stdout, sys.stderr):  # badge symbols must not crash legacy Windows consoles (cp1252)
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(prog="citeguard")
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("check")
@@ -28,6 +32,8 @@ def main(argv: list[str] | None = None, fetch=None) -> int:  # type: ignore[no-u
         print(json.dumps(r1, indent=2))
         return 0
     r = api.check(a.tex.read_text(encoding="utf-8"), a.bib.read_text(encoding="utf-8"), fetch=fetch, nli=api.get_nli(a.nli))
+    if a.report:  # write the report first so it exists even if console output fails
+        a.report.write_text(api.report_html(r), encoding="utf-8")
     if a.json:
         print(json.dumps(r, indent=2, default=str))
     else:
@@ -36,8 +42,6 @@ def main(argv: list[str] | None = None, fetch=None) -> int:  # type: ignore[no-u
         for cl in r["claims"]:
             if cl["label"] != "supported":
                 print(f"  line {cl['line']} [{cl['key']}] {cl['label']}: {cl['claim'][:80]}")
-    if a.report:
-        a.report.write_text(api.report_html(r), encoding="utf-8")
     return 0
 
 
