@@ -5,7 +5,7 @@ import re
 from itertools import groupby
 from typing import Any
 
-from .support import NLI, support, lexical_nli
+from .support import NLI, lexical_nli, support, split_sentences
 
 # Deliberately narrow grammar: compare only matching metric, direction and context.
 _NUM = re.compile(
@@ -17,6 +17,9 @@ _NUM = re.compile(
 
 
 def quantity(text: str) -> dict[str, Any] | None:
+    text = text.replace(r"\%", "%")
+    if re.search(r"\b(about|approximately|between|at least|at most|up to|not|never|if|unless)\b|[<>±~]", text, re.I):
+        return None
     matches = list(_NUM.finditer(text))
     if len(matches) != 1:
         return None
@@ -56,11 +59,14 @@ def assess(claim: str, source: str, nli: NLI = lexical_nli, fulltext: str = "") 
     """Selective heuristic routing; scores are not calibrated probabilities."""
     result = support(claim, source, nli)
     route = "abstract"
-    if fulltext and result["label"] != "supported":
+    initial_checks = [quantitative(claim, s) for _, s in split_sentences(source)]
+    needs_quantity = quantity(claim) is not None and not any(c["status"] == "match" for c in initial_checks)
+    if fulltext and (result["label"] != "supported" or needs_quantity):
         result = support(claim, fulltext, nli)
         route = "provided full text"
-    evidence = result.get("evidence", [])
-    checks = [quantitative(claim, e["sentence"]) for e in evidence]
+    checks = [dict(quantitative(claim, sentence), sentence=sentence, offset=offset)
+              for offset, sentence in split_sentences(fulltext if route == "provided full text" else source)]
+    checks = [c for c in checks if c["status"] != "not comparable"]
     statuses = {c["status"] for c in checks}
     label = result["label"]
     if "potential mismatch" in statuses:
