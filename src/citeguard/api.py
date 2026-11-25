@@ -9,6 +9,7 @@ from typing import Any
 
 from . import roots
 from .algorithms.drift import drift_flags
+from .algorithms.trace import evidence_graph
 from .algorithms.matching import Calibrator, Record, mismatches, raw_score
 from .algorithms.support import NLI, CrossEncoderNLI, lexical_nli, support
 from .io.clients import Cache, Polite, Resolver
@@ -91,9 +92,13 @@ def check(tex: str, bib: str, fetch: Any | None = None, nli: NLI = lexical_nli) 
         if s["label"] in ("unsupported", "partially supported", "contradicted") and "weak" not in res["badges"]:
             res["badges"].append("weak")
         claims.append({"key": c.key, "line": c.line, "claim": c.claim, **s})
+    sources = {k: (re.sub(r"<[^>]+>", " ", v["_record"].abstract),
+                   re.sub(r"<[^>]+>", " ", v["_record"].fulltext))
+               for k, v in results.items() if v.get("_record") is not None}
+    trace = evidence_graph(claims, sources, nli)
     for v in results.values():
         v.pop("_record", None)
-    return {"entries": results, "claims": claims}
+    return {"entries": results, "claims": claims, "trace": trace}
 
 
 def report_html(r: dict[str, Any]) -> str:
@@ -102,10 +107,21 @@ def report_html(r: dict[str, Any]) -> str:
     cl = "".join(f"<tr><td>{c['line']}</td><td>{html.escape(c['key'])}</td><td>{html.escape(c['claim'])}</td>"
                  f"<td>{c['label']}</td><td>{html.escape(' | '.join(e['sentence'] for e in c.get('evidence', [])))}</td></tr>"
                  for c in r["claims"])
+    trace_rows = "".join(
+        f"<tr><td>{g['line']}</td><td>{html.escape(e['key'])}</td>"
+        f"<td>{html.escape(g['atoms'][e['atom']])}</td><td>{html.escape(e['label'])}</td>"
+        f"<td>{html.escape(e['route'])}</td>"
+        f"<td>{html.escape('; '.join(q['status'] for q in e['quantitative']))}</td>"
+        f"<td>{html.escape(' | '.join(s['sentence'] for s in e.get('evidence', [])))}</td></tr>"
+        for g in r.get('trace', []) for e in g['edges'])
     return ("<!doctype html><meta charset=utf-8><title>CiteGuard report</title><h1>CiteGuard report</h1>"
             f"<h2>References</h2><table border=1 cellpadding=4><tr><th>Key</th><th>Badges</th><th>Issues</th></tr>{rows}</table>"
             f"<h2>Claim support</h2><table border=1 cellpadding=4><tr><th>Line</th><th>Key</th><th>Claim</th><th>Label</th>"
-            f"<th>Best source sentences</th></tr>{cl}</table>")
+            f"<th>Best source sentences</th></tr>{cl}</table>"
+            "<h2>Experimental TRACE-NLI screening</h2><p>Heuristic screening; not calibrated. Review alerts manually.</p>"
+            "<table border=1 cellpadding=4><tr><th>Line</th><th>Reference</th><th>Atomic claim</th>"
+            "<th>Screening result</th><th>Route</th><th>Quantity checks</th><th>Evidence</th></tr>"
+            f"{trace_rows}</table>")
 
 
 def fix_entry(e: BibEntry, rec: Record) -> str:
