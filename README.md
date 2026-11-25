@@ -22,10 +22,10 @@ and plain existence checkers miss that. CiteGuard focuses on what they miss:
 | ⚠ | title / authors / year differ from the canonical record |
 | ✖ | not found in Crossref / OpenAlex |
 
-## Try it in 60 seconds
+## Try CiteGuard in your browser
 
-- **No install:** [open the Colab notebook](https://colab.research.google.com/github/Anandharajan/citeguard/blob/main/notebooks/quickstart.ipynb) and press *Run all*.
-- **In the browser with VS Code:** [open in GitHub Codespaces](https://codespaces.new/Anandharajan/citeguard).
+- **No local install (recommended for researchers):** [open the Colab notebook](https://colab.research.google.com/github/Anandharajan/citeguard/blob/main/notebooks/quickstart.ipynb). Run **Setup**, then **Module 2: Check your own paper**. Select one `.tex` manuscript and one `.bib` bibliography (any filenames). The report appears in the notebook and downloads automatically. Module 1 is an optional sample demo. First run may take several minutes to install dependencies and download the model.
+- **For developers, in the browser with VS Code:** [open in GitHub Codespaces](https://codespaces.new/Anandharajan/citeguard).
 - **On your machine:**
 
 ```bash
@@ -89,8 +89,7 @@ Full-text checking and larger models are on the roadmap.
 
 ## Privacy
 
-Only titles and DOIs are sent to Crossref/OpenAlex. Your manuscript text never leaves your machine: the NLI model runs
-locally. Set `CITEGUARD_MAILTO` to identify yourself to the Crossref/OpenAlex polite pools.
+Only titles and DOIs are sent to Crossref/OpenAlex for metadata resolution. With the local CLI, manuscript text stays on your machine and the NLI model runs locally. Colab and Codespaces process manuscripts on remote cloud infrastructure; use the local CLI for confidential or unpublished material. In Colab, delete the runtime when finished. Set `CITEGUARD_MAILTO` to identify yourself to the Crossref/OpenAlex polite pools.
 
 ## Roadmap
 
