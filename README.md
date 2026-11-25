@@ -74,6 +74,18 @@ Every tool call is written to a local audit log, and you can limit file access t
    Labels: `supported` / `partially supported` / `contradicted` / `unsupported`, with the two best evidence sentences.
 4. **Drift:** preprint → published version, retractions and corrections from Crossref update records.
 
+## Experimental TRACE-NLI screening
+
+Project author: Anandharajan TRV (see CITATION.cff). AI-assisted implementation.
+
+The standard manuscript check now includes an additional experimental report:
+- Quantitative screening compares explicitly aligned metric, direction, units and context; seconds and milliseconds are normalized.
+- Conservative atomic clause splitting and a citation-group evidence graph expose per-reference evidence and coverage.
+- Selective routing uses supplied full text when abstract evidence is insufficient; automatic full-text retrieval is not implemented.
+- Missing evidence and numeric discrepancies are flagged for human review. Scores are not calibrated probabilities.
+
+The original NLI results remain available separately. TRACE-NLI is a research prototype, not a proven novel algorithm or independently benchmarked improvement. Existing SciFact numbers below are for the original scorer, not TRACE-NLI. Run `pytest tests/test_trace.py` for regression checks.
+
 ## Results (SciFact, honest numbers)
 
 Claim–abstract pairs from [SciFact](https://github.com/allenai/scifact) (Wadden et al., EMNLP 2020); thresholds tuned on
