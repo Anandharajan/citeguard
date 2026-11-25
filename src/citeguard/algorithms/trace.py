@@ -5,7 +5,7 @@ import re
 from itertools import groupby
 from typing import Any
 
-from .support import NLI, lexical_nli, support, split_sentences
+from .support import NLI, lexical_nli, relevance, split_sentences, support
 
 # Deliberately narrow grammar: compare only matching metric, direction and context.
 _NUM = re.compile(
@@ -75,6 +75,9 @@ def assess(claim: str, source: str, nli: NLI = lexical_nli, fulltext: str = "") 
         label = "insufficient quantitative evidence"
     elif label in ("unsupported", "cannot verify"):
         label = "insufficient accessible evidence"
+    elif label == "contradicted" and max((relevance(claim, s) for _, s in split_sentences(
+            fulltext if route == "provided full text" else source)), default=0.0) < 0.5:
+        label = "requires review"
     elif nli is lexical_nli or (label == "supported" and (result.get("score") or 0) < 0.5):
         label = "requires review"
     return {**result, "label": label, "route": route, "quantitative": checks,
