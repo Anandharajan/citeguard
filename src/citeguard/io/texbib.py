@@ -95,9 +95,19 @@ def citations(tex: str) -> list[Citation]:
     body = "\n".join(re.sub(r"(?<!\\)%.*", "", ln) for ln in tex.splitlines())
     # mask cite commands first: optional args like [p.~3] contain dots that would split sentences
     body = _CITE.sub(lambda m: "⟦CITE:" + m.group(1) + "⟧", body)
+    # Strip structural markup without shifting original line numbers.
+    def blank(m: re.Match[str]) -> str:
+        return "".join("\n" if ch == "\n" else " " for ch in m.group())
+
+    body = re.sub(r"\\(?:begin|end)\{[^}]+\}(?:\{[^{}]*\})?", blank, body)
+    body = re.sub(r"\\(?:toprule|midrule|bottomrule|hline|cline(?:\{[^}]*\})?)\b", blank, body)
+    body = re.sub(r"\\\\(?:\[[^\]]*\])?", lambda m: "." + " " * (len(m.group()) - 1), body)
+    body = re.sub(r"(?<!\\)&", " ", body)
+    body = re.sub(r"\\(?:eqref|ref|pageref|label)\{[^}]*\}", blank, body)
+    body = re.sub(r"\\(?:documentclass|usepackage)(?:\[[^\]]*\])?\{[^}]*\}", blank, body)
     out = []
     prev = ""
-    for sm in re.finditer(r"[^.!?]+(?:[.!?]+(?=\s|$)|$)", body):
+    for sm in re.finditer(r"[\s\S]+?(?:[.!?]+(?=\s|$)|$)", body):
         s = sm.group()
         if not s.strip():
             continue
