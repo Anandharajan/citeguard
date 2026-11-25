@@ -41,6 +41,8 @@ def title_sim(a: str, b: str) -> float:
 def surnames(authors: list[str]) -> set[str]:
     out = set()
     for a in authors:
+        if norm(a) in ("others", "et al"):
+            continue
         a = norm(a.split(",")[0]) if "," in a else norm(a).split(" ")[-1] if norm(a) else ""
         if a:
             out.add(a.split(" ")[-1])
@@ -83,11 +85,12 @@ def mismatches(title: str, authors: list[str], year: int | None, rec: Record) ->
     if title_sim(title, rec.title) < 0.95:
         out.append(f"title differs: canonical '{rec.title}'")
     missing = surnames(rec.authors) - surnames(authors)
-    if missing:
+    if missing and not any(norm(a) in ("others", "et al") for a in authors):
         out.append(f"authors missing from bib: {', '.join(sorted(missing))}")
     extra = surnames(authors) - surnames(rec.authors)
     if extra:
         out.append(f"authors not in canonical record: {', '.join(sorted(extra))}")
     if year and rec.year and year != rec.year:
-        out.append(f"year {year} vs canonical {rec.year}")
+        out.append(f"year {year} vs canonical {rec.year}" +
+                   (" (check preprint versus published version)" if rec.is_preprint else ""))
     return out
